@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dragon's Den | 3D Culinary Experience</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #000;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        #three-canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* 3D Glass Effects */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.03);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .glass-panel:hover {
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(225, 29, 72, 0.5);
+            transform: translateY(-5px);
+        }
+
+        /* Page & Reveal Animations */
+        .reveal {
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s ease-out;
+        }
+        .reveal.active {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .red-glow {
+            box-shadow: 0 0 30px rgba(225, 29, 72, 0.3);
+        }
+
+        .text-stroke {
+            -webkit-text-stroke: 1px rgba(255, 255, 255, 0.2);
+            color: transparent;
+        }
+
+        /* 3D Slider Styles */
+        .slider-wrapper {
+            perspective: 1000px;
+        }
+        .slide-content {
+            transition: all 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            transform-style: preserve-3d;
+        }
+        .slide-hidden {
+            opacity: 0;
+            transform: rotateY(20deg) translateZ(-100px);
+            pointer-events: none;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+        .slide-active {
+            opacity: 1;
+            transform: rotateY(0deg) translateZ(0);
+            position: relative;
+        }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: #0a0a0a; }
+        ::-webkit-scrollbar-thumb { background: #e11d48; border-radius: 10px; }
+        
+        .floating {
+            animation: float 6s ease-in-out infinite;
+        }
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0px); }
+        }
+    </style>
+</head>
+<body class="selection:bg-red-600 selection:text-white">
+
+    <canvas id="three-canvas"></canvas>
+
+    <!-- Global Navigation -->
+    <nav class="fixed w-full z-50 bg-black/50 backdrop-blur-md border-b border-white/10 py-4">
+        <div class="container mx-auto px-6 flex justify-between items-center">
+            <div class="flex items-center space-x-2 cursor-pointer" onclick="navigateTo('home')">
+                <div class="text-2xl font-black tracking-tighter leading-none border-b-4 border-red-600">
+                    DRAGON'S DEN
+                    <span class="block text-[8px] tracking-[0.3em] text-gray-400 font-bold uppercase">3D Culinary Studio</span>
+                </div>
+            </div>
+
+            <div class="hidden md:flex space-x-10 text-[11px] font-black uppercase tracking-[0.2em] items-center">
+                <button onclick="navigateTo('home')" class="nav-link text-red-600">Home</button>
+                <button onclick="navigateTo('menu')" class="nav-link hover:text-red-500 transition-colors">Digital Menu</button>
+                <button onclick="navigateTo('about')" class="nav-link hover:text-red-500 transition-colors">Our Story</button>
+                <button onclick="navigateTo('contact')" class="nav-link hover:text-red-500 transition-colors">Contact</button>
+                <button onclick="navigateTo('menu')" class="bg-red-600 text-white px-8 py-2.5 rounded-full hover:bg-red-700 transition-all shadow-lg shadow-red-900/40">
+                    ORDER NOW
+                </button>
+            </div>
+
+            <button class="md:hidden text-2xl" onclick="toggleMobileMenu()">
+                <i class="fas fa-bars"></i>
+            </button>
+        </div>
+    </nav>
+
+    <!-- Mobile Menu -->
+    <div id="mobile-menu" class="fixed inset-0 z-[60] bg-black hidden flex-col items-center justify-center space-y-8 text-2xl font-black uppercase tracking-widest">
+        <button class="absolute top-8 right-8 text-4xl" onclick="toggleMobileMenu()">&times;</button>
+        <button onclick="navigateTo('home'); toggleMobileMenu()">Home</button>
+        <button onclick="navigateTo('menu'); toggleMobileMenu()">Menu</button>
+        <button onclick="navigateTo('about'); toggleMobileMenu()">Story</button>
+        <button onclick="navigateTo('contact'); toggleMobileMenu()">Contact</button>
+    </div>
+
+    <!-- Main Content Wrapper -->
+    <main id="content-area">
+        
+        <!-- HOME PAGE -->
+        <section id="page-home" class="min-h-screen flex items-center pt-20">
+            <div class="container mx-auto px-6 grid lg:grid-cols-2 gap-16 items-center">
+                
+                <!-- 3D SLIDER CONTAINER -->
+                <div class="relative z-10 slider-wrapper min-h-[500px] flex flex-col justify-center">
+                    
+                    <!-- Slide 1 -->
+                    <div class="slide-content slide-active" id="slide-0">
+                        <div class="inline-flex items-center space-x-3 bg-white/5 border border-white/10 px-4 py-2 rounded-lg mb-8">
+                            <span class="text-red-600 font-black italic text-xs uppercase">Mastering the Art of the Wok</span>
+                            <div class="w-px h-3 bg-white/20"></div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest">Premium Halal</span>
+                        </div>
+                        <h1 class="text-6xl md:text-[8rem] font-black text-white leading-[0.8] mb-6 tracking-tighter">
+                            DRAGON'S <br/><span class="text-red-600">DEN</span>
+                        </h1>
+                        <p class="text-lg text-gray-400 max-w-lg mb-10 leading-relaxed font-medium">
+                            Experience the sizzle and steam of our kitchen where every dish is a celebration of tradition. We blend ancient wok secrets with modern culinary art.
+                        </p>
+                    </div>
+
+                    <!-- Slide 2 -->
+                    <div class="slide-content slide-hidden" id="slide-1">
+                        <div class="inline-flex items-center space-x-3 bg-white/5 border border-white/10 px-4 py-2 rounded-lg mb-8">
+                            <span class="text-red-600 font-black italic text-xs uppercase">Authentic Flavors, Modern Spirit</span>
+                            <div class="w-px h-3 bg-white/20"></div>
+                            <span class="text-[10px] font-bold uppercase tracking-widest">Wok Hei Magic</span>
+                        </div>
+                        <h1 class="text-6xl md:text-9xl font-black text-white leading-[0.8] mb-6 tracking-tighter">
+                            THE <br/><span class="text-red-600">SECRET</span>
+                        </h1>
+                        <p class="text-lg text-gray-400 max-w-lg mb-10 leading-relaxed font-medium">
+                            From hand-folded dumplings to wok-tossed noodles, we bring the heart of the Dragon's Den to your table. Every bite is a story of craft.
+                        </p>
+                    </div>
+
+                    <!-- Slider Controls -->
+                    <div class="flex items-center space-x-6 mt-4">
+                        <button onclick="prevSlide()" class="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-red-600 hover:border-red-600 transition-all">
+                            <i class="fas fa-arrow-left text-xs"></i>
+                        </button>
+                        <div class="flex space-x-2" id="slider-dots">
+                            <div class="w-8 h-1 bg-red-600 rounded-full transition-all"></div>
+                            <div class="w-2 h-1 bg-white/20 rounded-full transition-all"></div>
+                        </div>
+                        <button onclick="nextSlide()" class="w-12 h-12 rounded-full border border-white/20 flex items-center justify-center hover:bg-red-600 hover:border-red-600 transition-all">
+                            <i class="fas fa-arrow-right text-xs"></i>
+                        </button>
+                    </div>
+
+                    <div class="mt-12 flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-8">
+                        <button onclick="navigateTo('menu')" class="w-full sm:w-auto bg-red-600 text-white px-12 py-5 rounded-full font-black text-lg flex items-center justify-center space-x-3 hover:bg-red-700 transition-all shadow-2xl shadow-red-900/50 group">
+                            <span>RESERVE TABLE</span>
+                            <i class="fas fa-chevron-right text-sm group-hover:translate-x-1 transition-transform"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="relative hidden lg:block">
+                    <!-- Dynamic floating image with glow -->
+                    <div class="relative z-10 floating">
+                        <img src="https://images.unsplash.com/photo-1512058564366-18510be2db19?auto=format&fit=crop&q=80&w=800" 
+                             class="w-[450px] h-[450px] object-cover rounded-full border-[10px] border-white/5 shadow-2xl red-glow" alt="">
+                        
+                        <div class="glass-panel p-8 rounded-3xl absolute -right-10 top-0 z-20 border-red-600/30">
+                            <div class="text-red-600 font-black text-4xl mb-1 italic">20%</div>
+                            <div class="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Digital Discount</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- MENU PAGE -->
+        <section id="page-menu" class="min-h-screen pt-32 pb-24 hidden">
+            <div class="container mx-auto px-6">
+                <div class="text-center mb-20 reveal">
+                    <h2 class="text-red-600 font-black tracking-[0.5em] text-sm uppercase mb-4 italic">The Dragon's Selection</h2>
+                    <h3 class="text-6xl font-black text-white">AUTHENTIC FLAVORS, MODERN SPIRIT</h3>
+                </div>
+
+                <div class="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
+                    <!-- Item 1 -->
+                    <div class="glass-panel group rounded-3xl overflow-hidden p-6 reveal">
+                        <div class="relative h-64 rounded-2xl overflow-hidden mb-6">
+                            <img src="https://images.unsplash.com/photo-1541696432-82c6da8ce7bf?auto=format&fit=crop&q=80&w=800" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="">
+                            <div class="absolute top-4 right-4 bg-red-600 text-white font-black px-4 py-1 rounded-full text-xs italic">HOT</div>
+                        </div>
+                        <div class="flex justify-between items-start mb-4">
+                            <h4 class="text-xl font-black text-white">Szechuan Pepper Beef</h4>
+                            <span class="text-red-600 font-black text-xl">$24.50</span>
+                        </div>
+                        <p class="text-gray-500 text-sm mb-6">Wok-tossed prime beef strips with sun-dried szechuan peppers and our secret dark soy blend.</p>
+                        <button class="w-full py-3 bg-white/5 hover:bg-red-600 transition-colors rounded-xl text-xs font-black uppercase tracking-widest">Add to Order</button>
+                    </div>
+
+                    <!-- Item 2 -->
+                    <div class="glass-panel group rounded-3xl overflow-hidden p-6 reveal" style="transition-delay: 0.1s;">
+                        <div class="relative h-64 rounded-2xl overflow-hidden mb-6">
+                            <img src="https://images.unsplash.com/photo-1599487488170-d11ec9c175f0?auto=format&fit=crop&q=80&w=800" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="">
+                        </div>
+                        <div class="flex justify-between items-start mb-4">
+                            <h4 class="text-xl font-black text-white">Signature Bao Trio</h4>
+                            <span class="text-red-600 font-black text-xl">$18.00</span>
+                        </div>
+                        <p class="text-gray-500 text-sm mb-6">Three steamed milk buns filled with slow-cooked brisket, crispy tofu, and honey-glazed duck.</p>
+                        <button class="w-full py-3 bg-white/5 hover:bg-red-600 transition-colors rounded-xl text-xs font-black uppercase tracking-widest">Add to Order</button>
+                    </div>
+
+                    <!-- Item 3 -->
+                    <div class="glass-panel group rounded-3xl overflow-hidden p-6 reveal" style="transition-delay: 0.2s;">
+                        <div class="relative h-64 rounded-2xl overflow-hidden mb-6">
+                            <img src="https://images.unsplash.com/photo-1563245394-17d919bb7798?auto=format&fit=crop&q=80&w=800" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" alt="">
+                        </div>
+                        <div class="flex justify-between items-start mb-4">
+                            <h4 class="text-xl font-black text-white">Dragon's Dumplings</h4>
+                            <span class="text-red-600 font-black text-xl">$16.50</span>
+                        </div>
+                        <p class="text-gray-500 text-sm mb-6">Hand-folded daily. Served in bamboo baskets with our house ginger and black vinegar dip.</p>
+                        <button class="w-full py-3 bg-white/5 hover:bg-red-600 transition-colors rounded-xl text-xs font-black uppercase tracking-widest">Add to Order</button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ABOUT PAGE -->
+        <section id="page-about" class="min-h-screen pt-32 pb-24 hidden">
+            <div class="container mx-auto px-6">
+                <div class="grid lg:grid-cols-2 gap-20 items-center">
+                    <div class="reveal">
+                        <h2 class="text-red-600 font-black tracking-[0.5em] text-sm uppercase mb-6 italic">Our Heritage</h2>
+                        <h3 class="text-6xl font-black text-white leading-none mb-10">LEGACY OF THE <br/><span class="text-stroke text-7xl uppercase">Flame</span></h3>
+                        
+                        <div class="space-y-8 text-gray-400 text-lg leading-relaxed">
+                            <p>
+                                Our halal-certified menu ensures that everyone can enjoy the rich heritage of Chinese cuisine. At Dragon's Den, we treat cooking as an ancestral dialogue between the fire and the wok.
+                            </p>
+                            <p>
+                                Every toss of the wok is a deliberate act of precision, aimed at achieving that elusive "Wok Hei" – the breath of the dragon.
+                            </p>
+                            <div class="grid grid-cols-3 gap-8 pt-6">
+                                <div class="glass-panel p-4 rounded-xl text-center">
+                                    <div class="text-3xl font-black text-white mb-1 italic">15+</div>
+                                    <div class="text-[9px] font-bold uppercase tracking-widest text-red-600">Years</div>
+                                </div>
+                                <div class="glass-panel p-4 rounded-xl text-center">
+                                    <div class="text-3xl font-black text-white mb-1 italic">100%</div>
+                                    <div class="text-[9px] font-bold uppercase tracking-widest text-red-600">Halal</div>
+                                </div>
+                                <div class="glass-panel p-4 rounded-xl text-center">
+                                    <div class="text-3xl font-black text-white mb-1 italic">1M+</div>
+                                    <div class="text-[9px] font-bold uppercase tracking-widest text-red-600">Tosses</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="relative reveal" style="transition-delay: 0.3s;">
+                        <img src="https://images.unsplash.com/photo-1555126634-323283e090fa?auto=format&fit=crop&q=80&w=1000" class="rounded-[3rem] border border-white/10 shadow-2xl floating" alt="">
+                        <div class="absolute -bottom-10 -left-10 glass-panel p-8 rounded-3xl border-red-600 shadow-xl max-w-xs">
+                            <p class="text-white italic font-medium leading-relaxed">"The secret isn't just the recipe, it's the temperature of the soul behind the wok."</p>
+                            <p class="mt-4 font-black text-red-600 text-xs tracking-widest uppercase">— Master Chef Chen</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- CONTACT PAGE -->
+        <section id="page-contact" class="min-h-screen pt-32 pb-24 hidden">
+            <div class="container mx-auto px-6">
+                <div class="max-w-5xl mx-auto">
+                    <div class="grid md:grid-cols-2 gap-16">
+                        <div class="reveal">
+                            <h2 class="text-5xl font-black text-white mb-8 uppercase">Get In <span class="text-red-600 italic">Touch</span></h2>
+                            <p class="text-gray-400 mb-12 italic">From hand-folded dumplings to wok-tossed noodles, we bring the heart of the Dragon's Den to your table. Let's start the conversation.</p>
+                            
+                            <div class="space-y-6">
+                                <div class="glass-panel flex items-center space-x-6 p-6 rounded-2xl">
+                                    <div class="w-14 h-14 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-600 text-xl">
+                                        <i class="fas fa-map-marker-alt"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-white font-black text-xs uppercase tracking-widest">Location</h4>
+                                        <p class="text-gray-500 text-sm">123 Wok Lane, Greenwich, London</p>
+                                    </div>
+                                </div>
+                                <div class="glass-panel flex items-center space-x-6 p-6 rounded-2xl">
+                                    <div class="w-14 h-14 rounded-2xl bg-red-600/10 flex items-center justify-center text-red-600 text-xl">
+                                        <i class="fas fa-phone"></i>
+                                    </div>
+                                    <div>
+                                        <h4 class="text-white font-black text-xs uppercase tracking-widest">Phone</h4>
+                                        <p class="text-gray-500 text-sm">+44 20 1234 5678</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="glass-panel p-10 rounded-[3rem] reveal" style="transition-delay: 0.2s;">
+                            <form class="space-y-6" onsubmit="event.preventDefault(); alert('The Dragon has received your message!')">
+                                <div>
+                                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Name</label>
+                                    <input type="text" class="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-white focus:outline-none focus:border-red-600 transition-all" placeholder="Full Name">
+                                </div>
+                                <div>
+                                    <label class="block text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Email</label>
+                                    <input type="email" class="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-white focus:outline-none focus:border-red-600 transition-all" placeholder="email@example.com">
+                                </div>
+                                <button type="submit" class="w-full bg-red-600 text-white py-5 rounded-xl font-black uppercase tracking-widest hover:bg-red-700 transition-all shadow-xl shadow-red-900/40">
+                                    Initiate Connection
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Global Footer -->
+    <footer class="py-20 border-t border-white/10 bg-black/80">
+        <div class="container mx-auto px-6 text-center">
+            <div class="text-xl font-black tracking-tighter mb-8">DRAGON'S DEN</div>
+            <div class="flex justify-center space-x-8 mb-12">
+                <a href="#" class="text-gray-500 hover:text-red-600 transition-colors text-xl"><i class="fab fa-instagram"></i></a>
+                <a href="#" class="text-gray-500 hover:text-red-600 transition-colors text-xl"><i class="fab fa-facebook"></i></a>
+                <a href="#" class="text-gray-500 hover:text-red-600 transition-colors text-xl"><i class="fab fa-twitter"></i></a>
+            </div>
+            <p class="text-[10px] font-bold text-gray-600 tracking-[0.3em] uppercase">
+                &copy; 2026 Dragon's Den Culinary Studio. All rights reserved.
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // NAVIGATION LOGIC
+        function navigateTo(pageId) {
+            const pages = ['home', 'menu', 'about', 'contact'];
+            pages.forEach(p => {
+                const el = document.getElementById(`page-${p}`);
+                if (p === pageId) {
+                    el.classList.remove('hidden');
+                    setTimeout(() => {
+                        el.style.opacity = '1';
+                    }, 50);
+                    // Re-trigger reveals for the new page
+                    setTimeout(handleReveal, 100);
+                } else {
+                    el.style.opacity = '0';
+                    setTimeout(() => el.classList.add('hidden'), 500);
+                }
+            });
+
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('text-red-600');
+                if (link.innerText.toLowerCase().includes(pageId)) {
+                    link.classList.add('text-red-600');
+                }
+            });
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // HERO SLIDER LOGIC
+        let currentSlide = 0;
+        const totalSlides = 2;
+
+        function updateSlider() {
+            for (let i = 0; i < totalSlides; i++) {
+                const slide = document.getElementById(`slide-${i}`);
+                if (i === currentSlide) {
+                    slide.classList.remove('slide-hidden');
+                    slide.classList.add('slide-active');
+                } else {
+                    slide.classList.add('slide-hidden');
+                    slide.classList.remove('slide-active');
+                }
+            }
+
+            // Update dots
+            const dots = document.getElementById('slider-dots').children;
+            for (let i = 0; i < dots.length; i++) {
+                dots[i].className = i === currentSlide 
+                    ? 'w-8 h-1 bg-red-600 rounded-full transition-all' 
+                    : 'w-2 h-1 bg-white/20 rounded-full transition-all';
+            }
+        }
+
+        function nextSlide() {
+            currentSlide = (currentSlide + 1) % totalSlides;
+            updateSlider();
+        }
+
+        function prevSlide() {
+            currentSlide = (currentSlide - 1 + totalSlides) % totalSlides;
+            updateSlider();
+        }
+
+        // Auto slide every 8 seconds
+        setInterval(nextSlide, 8000);
+
+        function toggleMobileMenu() {
+            const menu = document.getElementById('mobile-menu');
+            menu.classList.toggle('hidden');
+            menu.classList.toggle('flex');
+        }
+
+        // SCROLL REVEAL ENGINE
+        function handleReveal() {
+            const reveals = document.querySelectorAll('.reveal');
+            reveals.forEach(el => {
+                const windowHeight = window.innerHeight;
+                const elementTop = el.getBoundingClientRect().top;
+                const elementVisible = 150;
+                if (elementTop < windowHeight - elementVisible) {
+                    el.classList.add('active');
+                }
+            });
+        }
+        window.addEventListener('scroll', handleReveal);
+
+        // THREE.JS 3D SCENE
+        let scene, camera, renderer, particles, redLight, group, ring;
+        let mouseX = 0, mouseY = 0;
+
+        function init3D() {
+            scene = new THREE.Scene();
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            renderer = new THREE.WebGLRenderer({ 
+                canvas: document.getElementById('three-canvas'),
+                alpha: true,
+                antialias: true 
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+
+            group = new THREE.Group();
+            scene.add(group);
+
+            // Particles (Enhanced Embers)
+            const particlesCount = 2000;
+            const posArray = new Float32Array(particlesCount * 3);
+            for(let i = 0; i < particlesCount * 3; i++) {
+                posArray[i] = (Math.random() - 0.5) * 20;
+            }
+            const particleGeometry = new THREE.BufferGeometry();
+            particleGeometry.setAttribute('position', new THREE.BufferAttribute(posArray, 3));
+            const particleMaterial = new THREE.PointsMaterial({
+                size: 0.02,
+                color: 0xff3300,
+                transparent: true,
+                opacity: 0.4,
+                blending: THREE.AdditiveBlending
+            });
+            particles = new THREE.Points(particleGeometry, particleMaterial);
+            group.add(particles);
+
+            // Dragon Ring (3D Geometry)
+            const torusGeo = new THREE.TorusKnotGeometry(2, 0.4, 100, 16);
+            const torusMat = new THREE.MeshStandardMaterial({ 
+                color: 0x111111, 
+                metalness: 1, 
+                roughness: 0.2,
+                wireframe: true 
+            });
+            ring = new THREE.Mesh(torusGeo, torusMat);
+            group.add(ring);
+
+            // Lights
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.1);
+            scene.add(ambientLight);
+
+            redLight = new THREE.PointLight(0xe11d48, 3, 15);
+            redLight.position.set(2, 2, 2);
+            scene.add(redLight);
+
+            camera.position.z = 6;
+
+            // Interaction
+            document.addEventListener('mousemove', (e) => {
+                mouseX = (e.clientX - window.innerWidth / 2) / 200;
+                mouseY = (e.clientY - window.innerHeight / 2) / 200;
+            });
+
+            animate();
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            particles.rotation.y += 0.0008;
+            ring.rotation.z += 0.005;
+            ring.rotation.x += 0.002;
+
+            group.rotation.y += (mouseX - group.rotation.y) * 0.05;
+            group.rotation.x += (mouseY - group.rotation.x) * 0.05;
+
+            const time = Date.now() * 0.001;
+            redLight.position.x = Math.sin(time) * 4;
+            redLight.position.z = Math.cos(time) * 4;
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Initialize
+        window.onload = () => {
+            init3D();
+            navigateTo('home');
+            handleReveal();
+        };
+    </script>
+</body>
+</html>
